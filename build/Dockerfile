@@ -6,34 +6,41 @@ ARG AWS_REGION=us-east-1
 ARG LIB_DIR=python
 ARG LAYER_NAME=PyTesseractLayer
 ARG ZIP_FILE=pytesseract_layer.zip
-ARG LAYER_DESC="This layer was built frankjgonz @ GitHub (https://github.com/frankjgonz/aws-pytesseract-lambda-layer); it includes the Tesseract OCR engine, the Pillow module, and the PyTesserat module."
-ARG LAYER_RUNTIMES="python3.6 python3.7 python3.8"
 
 RUN apt-get -y update && apt-get -y upgrade; apt-get clean
-RUN apt-get install -y zip && apt-get install -y unzip
+RUN apt-get install -y zip && apt-get install -y unzip && \
+    apt-get install -y curl
 RUN apt-get install -y python3
-RUN apt-get install -y python3-pip 
+RUN apt-get install -y python3-pip
+RUN DEBIAN_FRONTEND="noninteractive" TZ=US/ apt-get install -y tzdata
+RUN apt-get install -y automake ca-certificates g++ git \
+    libtool libleptonica-dev make pkg-config
 #RUN apt-get install -y tesseract-ocr
 
-#Install AWS CLI
+# Install AWS CLI
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && ./aws/install
 RUN aws configure set aws_access_key_id ${AWS_ACCESS_KEY} && \
     aws configure set aws_secret_access_key ${AWS_SECRET_ACCESS_KEY} && \
     aws configure set default.region ${AWS_REGION}
 
+# Install Tesseract-OCR
+WORKDIR /opt
+RUN git clone https://github.com/tesseract-ocr/tesseract.git
+RUN cd tesseract && \
+    ./autogen.sh && ./configure && \
+    make && \
+    make install
+
 WORKDIR /tmp
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt ${LIB_DIR}
-
+RUN pip3 install -r requirements.txt -t ${LIB_DIR}
 RUN cp -r ./${LIB_DIR} /opt/${LIB_DIR}
-#RUN cp -r /usr/bin/tesseract /opt/tesseract
 
 WORKDIR /opt
 RUN zip -r ${ZIP_FILE} .
-#RUN aws lambda publish layer-version --layer-name ${LAYER_NAME} \
-#    --description ${LAYER_DESC} --compatible-runtimes ${LAYER_RUNTIMES} \
-#    --zip-file fileb://${ZIP_FILE}
+RUN aws lambda publish-layer-version --layer-name ${LAYER_NAME} \
+    --compatible-runtimes python3.6 python3.7 python3.8 \
+    --zip-file fileb://${ZIP_FILE}
 
-EXPOSE 80 
-CMD bash
+CMD printf 'Done! Tesseract location is /opt/tesseract/tesseract'
