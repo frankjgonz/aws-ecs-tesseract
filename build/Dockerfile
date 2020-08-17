@@ -15,7 +15,6 @@ RUN apt-get install -y python3-pip
 RUN DEBIAN_FRONTEND="noninteractive" TZ=US/ apt-get install -y tzdata
 RUN apt-get install -y automake ca-certificates g++ git \
     libtool libleptonica-dev make pkg-config
-#RUN apt-get install -y tesseract-ocr
 
 # Install AWS CLI
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
@@ -26,21 +25,37 @@ RUN aws configure set aws_access_key_id ${AWS_ACCESS_KEY} && \
 
 # Install Tesseract-OCR
 WORKDIR /opt
+RUN mkdir tesseract/
+WORKDIR /tmp
 RUN git clone https://github.com/tesseract-ocr/tesseract.git
 RUN cd tesseract && \
     ./autogen.sh && ./configure && \
     make && \
-    make install
+    make install && \
+    ldconfig
 
 WORKDIR /tmp
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt -t ${LIB_DIR}
+RUN cd ${LIB_DIR} && \
+    rm -rf *.dist-info && \
+    rm -rf pytesseract/__pycache__ PIL/__pycache__
+
+WORKDIR /tmp
 RUN cp -r ./${LIB_DIR} /opt/${LIB_DIR}
+RUN cp -r ./tesseract/tesseract /opt/tesseract/tesseract && \
+    cp -r ./tesseract/libtool /opt/tesseract/libtool && \
+    cp -r ./tesseract/.libs /opt/tesseract/.libs && \
+    cp -r ./tesseract/include /opt/tesseract/include && \
+    cp -r ./tesseract/tessdata /opt/tesseract/tessdata && \
+    cp -r ./tesseract/config.status /opt/tesseract/config.status && \
+    cp -r ./tesseract/java /opt/tesseract/java && \
+    cp -r ./tesseract/config /opt/tesseract/config
 
 WORKDIR /opt
 RUN zip -r ${ZIP_FILE} .
-RUN aws lambda publish-layer-version --layer-name ${LAYER_NAME} \
-    --compatible-runtimes python3.6 python3.7 python3.8 \
-    --zip-file fileb://${ZIP_FILE}
+#RUN aws lambda publish-layer-version --layer-name ${LAYER_NAME} --compatible-runtimes python3.6 python3.7 python3.8 --zip-file fileb://${ZIP_FILE}
 
-CMD printf 'Done! Tesseract location is /opt/tesseract/tesseract'
+EXPOSE 80
+CMD bash
+#printf 'Done! Layer is deployed and Tesseract-OCR location is /opt/tesseract/tesseract'
