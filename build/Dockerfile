@@ -1,5 +1,6 @@
 FROM ubuntu:20.04
 
+ENV S3_PATH
 ARG AWS_ACCESS_KEY
 ARG AWS_SECRET_ACCESS_KEY
 ARG AWS_REGION=us-east-1
@@ -7,6 +8,7 @@ ARG LIB_DIR=python
 ARG LAYER_NAME=PyTesseractLayer
 ARG ZIP_FILE=pytesseract_layer.zip
 
+# Install Dependencies
 RUN apt-get -y update && apt-get -y upgrade; apt-get clean
 RUN apt-get install -y zip && apt-get install -y unzip && \
     apt-get install -y curl
@@ -34,28 +36,5 @@ RUN cd tesseract && \
     make install && \
     ldconfig
 
-WORKDIR /tmp
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt -t ${LIB_DIR}
-RUN cd ${LIB_DIR} && \
-    rm -rf *.dist-info && \
-    rm -rf pytesseract/__pycache__ PIL/__pycache__
 
-WORKDIR /tmp
-RUN cp -r ./${LIB_DIR} /opt/${LIB_DIR}
-RUN cp -r ./tesseract/tesseract /opt/tesseract/tesseract && \
-    cp -r ./tesseract/libtool /opt/tesseract/libtool && \
-    cp -r ./tesseract/.libs /opt/tesseract/.libs && \
-    cp -r ./tesseract/include /opt/tesseract/include && \
-    cp -r ./tesseract/tessdata /opt/tesseract/tessdata && \
-    cp -r ./tesseract/config.status /opt/tesseract/config.status && \
-    cp -r ./tesseract/java /opt/tesseract/java && \
-    cp -r ./tesseract/config /opt/tesseract/config
-
-WORKDIR /opt
-RUN zip -r ${ZIP_FILE} .
-#RUN aws lambda publish-layer-version --layer-name ${LAYER_NAME} --compatible-runtimes python3.6 python3.7 python3.8 --zip-file fileb://${ZIP_FILE}
-
-EXPOSE 80
-CMD bash
-#printf 'Done! Layer is deployed and Tesseract-OCR location is /opt/tesseract/tesseract'
+WORKDIR /usr
